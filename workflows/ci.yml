@@ -1,0 +1,62 @@
+name: Autograding Tests
+
+on:
+  push:
+  workflow_dispatch:
+  repository_dispatch:
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake git python3 python3-pip
+          pip3 install openai
+
+      - name: Clone Google Test
+        run: |
+          cd /usr/src
+          sudo git clone https://github.com/google/googletest.git
+
+      - name: Build Google Test
+        run: |
+          cd /usr/src/googletest
+          sudo cmake .
+          sudo make
+          sudo cp googletest/lib/*.a /usr/lib
+          sudo cp googlemock/lib/*.a /usr/lib
+
+      - name: Configure CMake
+        run: cmake .
+
+      - name: Build the project
+        run: make
+
+      - name: Run tests
+        run: |
+          make test || true
+          ./build/test_calculator > result.log 2>&1
+          cat result.log
+
+      - name: Analyze with ChatGPT
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python3 analyze_code.py
+
+      - name: Upload feedback
+        uses: actions/upload-artifact@v2
+        with:
+          name: feedback
+          path: feedback.log
